@@ -7,7 +7,7 @@ from streamlit_chat import message
 
 from modules.chatbot import Chatbot
 from modules.embedder import Embedder
-from modules.history import History
+from modules.history import ChatHistory
 from modules.layout import Layout
 from modules.sidebar import Sidebar
 
@@ -39,6 +39,7 @@ def handle_upload():
             "👆 Upload your PDF file to get started, "
             "sample for try : [file.pdf](https://github.com/gabacode/chatPDF/blob/main/file.pdf)"
         )
+        st.session_state["reset_chat"] = True
     return uploaded_file
 
 
@@ -69,7 +70,7 @@ async def main():
         uploaded_file = handle_upload()
 
         if uploaded_file is not None:
-            history = History()
+            history = ChatHistory()
             sidebar.options()
             try:
                 chatbot = await setup_chatbot(uploaded_file, st.session_state["model"], st.session_state["temperature"])
@@ -84,7 +85,7 @@ async def main():
                         with st.form(key="my_form", clear_on_submit=True):
                             user_input = st.text_area(
                                 "Query:",
-                                placeholder="Talk about your data here (:",
+                                placeholder="Ask me anything about the document...",
                                 key="input",
                                 label_visibility="collapsed",
                             )
@@ -92,12 +93,14 @@ async def main():
 
                         if st.session_state["reset_chat"]:
                             history.reset(uploaded_file)
-                        history.init(uploaded_file)
+
+                        history.initialize(uploaded_file)
 
                         # If the user has submitted a query
                         if submit_button and user_input:
+                            history.append("past", user_input)
                             output = await st.session_state["chatbot"].conversational_chat(user_input)
-                            history.append(user_input, output)
+                            history.append("generated", output)
 
                     # If there are generated messages to display
                     if st.session_state["generated"]:
