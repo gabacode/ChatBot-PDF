@@ -11,7 +11,7 @@ class ChatHistory:
         return "Hey ! 👋"
 
     def default_prompt(self, thingy, topic):
-        return f"Hello! Ask me anything about the {thingy} {topic} 🤗"
+        return f'Hello! Ask me anything about the {thingy} "{topic}" 🤗'
 
     def initialize_user_history(self):
         st.session_state["user"] = [self.default_greeting()]
