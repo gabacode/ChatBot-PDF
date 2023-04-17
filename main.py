@@ -1,17 +1,13 @@
 import os
-import pickle
 import streamlit as st
-import tempfile
 import asyncio
 from dotenv import load_dotenv
 
-# Import modules needed for building the chatbot application
 from streamlit_chat import message
-from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.chat_models import ChatOpenAI
-from langchain.chains import ConversationalRetrievalChain
-from langchain.document_loaders import PyPDFLoader
-from langchain.vectorstores import FAISS
+
+from modules.chatbot import Chatbot
+from modules.embedder import Embedder
+
 
 # Load the environment variables from the .env file
 load_dotenv()
@@ -32,6 +28,8 @@ if not user_api_key:
     )
 else:
     st.sidebar.success("API key loaded from .env", icon="🚀")
+
+embeds = Embedder()
 
 
 async def main():
@@ -68,56 +66,6 @@ async def main():
 
         if uploaded_file:
             try:
-                # Define an asynchronous function for storing document embeddings using Langchain and FAISS
-                async def storeDocEmbeds(file, filename):
-                    # Write the uploaded file to a temporary file
-                    with tempfile.NamedTemporaryFile(mode="wb", delete=False) as tmp_file:
-                        tmp_file.write(file)
-                        tmp_file_path = tmp_file.name
-
-                    # Load the data from the file using Langchain
-                    loader = PyPDFLoader(file_path=tmp_file_path)
-                    data = loader.load_and_split()
-
-                    # Create an embeddings object using Langchain
-                    embeddings = OpenAIEmbeddings()
-
-                    # Store the embeddings vectors using FAISS
-                    vectors = FAISS.from_documents(data, embeddings)
-                    os.remove(tmp_file_path)
-
-                    # Save the vectors to a pickle file
-                    with open(filename + ".pkl", "wb") as f:
-                        pickle.dump(vectors, f)
-
-                # Define an asynchronous function for retrieving document embeddings
-                async def getDocEmbeds(file, filename):
-                    # Check if embeddings vectors have already been stored in a pickle file
-                    if not os.path.isfile(filename + ".pkl"):
-                        # If not, store the vectors using the storeDocEmbeds function
-                        await storeDocEmbeds(file, filename)
-
-                    # Load the vectors from the pickle file
-                    with open(filename + ".pkl", "rb") as f:
-                        global vectors
-                        vectors = pickle.load(f)
-
-                    return vectors
-
-                # Define an asynchronous function for conducting conversational chat using Langchain
-                async def conversational_chat(query):
-                    # Use the Langchain ConversationalRetrievalChain to generate a response to the user's query
-                    result = chain({"question": query, "chat_history": st.session_state["history"]})
-
-                    # Add the user's query and the chatbot's response to the chat history
-                    st.session_state["history"].append((query, result["answer"]))
-
-                    # Print the chat history for debugging purposes
-                    print("Log: ")
-                    print(st.session_state["history"])
-
-                    return result["answer"]
-
                 # Set up sidebar with various options
                 with st.sidebar.expander("🛠️ Settings", expanded=False):
                     # Add a button to reset the chat history
@@ -149,15 +97,10 @@ async def main():
                         # Read the uploaded PDF file
                         uploaded_file.seek(0)
                         file = uploaded_file.read()
-
                         # Generate embeddings vectors for the file
-                        vectors = await getDocEmbeds(file, uploaded_file.name)
-
+                        vectors = await embeds.getDocEmbeds(file, uploaded_file.name)
                         # Use the Langchain ConversationalRetrievalChain to set up the chatbot
-                        chain = ConversationalRetrievalChain.from_llm(
-                            llm=ChatOpenAI(temperature=TEMPERATURE, model_name=MODEL), retriever=vectors.as_retriever()
-                        )
-
+                        chatbot = Chatbot(MODEL, TEMPERATURE, vectors)
                     # Set the "ready" flag to True now that the chatbot is ready to chat
                     st.session_state["ready"] = True
 
@@ -205,7 +148,7 @@ async def main():
                             st.session_state["past"].append(user_input)
 
                             # Generate a response using the Langchain ConversationalRetrievalChain
-                            output = await conversational_chat(user_input)
+                            output = await chatbot.conversational_chat(user_input)
 
                             # Add the user's chatbot's output to the chat history
                             st.session_state["generated"].append(output)
