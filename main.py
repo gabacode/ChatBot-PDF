@@ -7,21 +7,27 @@ from streamlit_chat import message
 
 from modules.chatbot import Chatbot
 from modules.embedder import Embedder
+from modules.sidebar import Sidebar
 
 
-# Load the environment variables from the .env file
-load_dotenv()
+embeds = Embedder()
 
-# Set the Streamlit page configuration, including the layout and page title/icon
 st.set_page_config(layout="wide", page_icon="💬", page_title="ChatBot-PDF")
 
-# Display the header for the application using HTML markdown
-st.markdown("<h1 style='text-align: center;'>ChatBot-PDF, Talk with your documents ! 💬</h1>", unsafe_allow_html=True)
 
-# Get the OpenAI API key from an environment variable if present
+def display_header():
+    st.markdown(
+        "<h1 style='text-align: center;'>ChatBot-PDF, Talk with your documents ! 💬</h1>", unsafe_allow_html=True
+    )
+
+
+def show_user_file(uploaded_file):
+    file_container = st.expander("Your PDF file :")
+    file_container.write(uploaded_file)
+
+
+load_dotenv()
 user_api_key = os.getenv("OPENAI_API_KEY")
-
-# Allow the user to enter their OpenAI API key if it's not present in the environment variables
 if not user_api_key:
     user_api_key = st.sidebar.text_input(
         label="#### Your OpenAI API key 👇", placeholder="Paste your openAI API key, sk-", type="password"
@@ -29,40 +35,29 @@ if not user_api_key:
 else:
     st.sidebar.success("API key loaded from .env", icon="🚀")
 
-embeds = Embedder()
-
 
 async def main():
-    # Check if the user has entered an OpenAI API key
+    display_header()
+
+    ############################
     if user_api_key == "":
-        # Display a message asking the user to enter their API key
         st.markdown(
             "<div style='text-align: center;'><h4>Enter your OpenAI API key to start chatting 😉</h4></div>",
             unsafe_allow_html=True,
         )
-
     else:
-        # Set the OpenAI API key as an environment variable
         os.environ["OPENAI_API_KEY"] = user_api_key
 
-        # Allow the user to upload a file
+        ############################
         uploaded_file = st.sidebar.file_uploader("upload", type="pdf", label_visibility="collapsed")
-
-        # If the user has uploaded a file, display it in an expander
         if uploaded_file is not None:
-
-            def show_user_file(uploaded_file):
-                file_container = st.expander("Your PDF file :")
-                file_container.write(uploaded_file)
-
             show_user_file(uploaded_file)
-
-        # If the user has not uploaded a file, display a message asking them to do so
         else:
             st.sidebar.info(
                 "👆 Upload your PDF file to get started, "
                 "sample for try : [file.pdf](https://github.com/gabacode/chatPDF/blob/main/file.pdf)"
             )
+        ############################
 
         if uploaded_file:
             try:
@@ -165,28 +160,12 @@ async def main():
                                     avatar_style="big-smile",
                                 )
                                 message(st.session_state["generated"][i], key=str(i), avatar_style="thumbs")
-                # st.write(chain)
 
             except Exception as e:
                 st.error(f"Error: {str(e)}")
 
-    # Create an expander for the "About" section
-    about = st.sidebar.expander("About 🤖")
-
-    # Write information about the chatbot in the "About" section
-    about.write(
-        "#### ChatBot-PDF is an AI chatbot featuring conversational memory, designed to enable users to discuss their PDF data in a more intuitive manner. 📄"
-    )
-    about.write(
-        "#### This is a fork of [ChatBot-CSV](https://github.com/yvann-hub/ChatBot-CSV) by [yvann-hub](https://github.com/yvann-hub), many thanks to him for his work. 🤗"
-    )
-    about.write(
-        "#### He employs large language models to provide users with seamless, context-aware natural language interactions for a better understanding of their data. 🌐"
-    )
-    about.write(
-        "#### Powered by [Langchain](https://github.com/hwchase17/langchain), [OpenAI](https://platform.openai.com/docs/models/gpt-3-5) and [Streamlit](https://github.com/streamlit/streamlit) ⚡"
-    )
-    about.write("#### Source code : [gabacode/ChatBot-PDF](https://github.com/gabacode/ChatBot-PDF)")
+    sidebar = Sidebar()
+    sidebar.show()
 
 
 # Run the main function using asyncio
