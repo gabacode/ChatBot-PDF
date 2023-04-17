@@ -59,63 +59,73 @@ async def setup_chatbot(uploaded_file, model, temperature):
     return chatbot
 
 
+# Create the sidebar with various options
+def show_sidebar_options():
+    with st.sidebar.expander("🛠️ Settings", expanded=False):
+        if st.button("Reset Chat"):
+            st.session_state["reset_chat"] = True
+        st.session_state.setdefault("reset_chat", False)
+        st.session_state.setdefault("model", "gpt-3.5-turbo")
+        st.session_state.setdefault("temperature", 0.618)
+        model = st.selectbox(label="Model", options=["gpt-3.5-turbo"])
+        temperature = st.slider(label="Temperature", min_value=0.0, max_value=1.0, value=0.618, step=0.01)
+        st.session_state["model"] = model
+        st.session_state["temperature"] = temperature
+
+
+def reset_chat_history(uploaded_file):
+    st.session_state["history"] = []
+    st.session_state["past"] = ["Hey ! 👋"]
+    st.session_state["generated"] = ["Hello ! Ask me anything about " + uploaded_file.name + " 🤗"]
+    st.session_state["reset_chat"] = False
+
+
+def initialize_chat_history(uploaded_file):
+    if "generated" not in st.session_state:
+        st.session_state["generated"] = ["Hello ! Ask me anything about " + uploaded_file.name + " 🤗"]
+    if "past" not in st.session_state:
+        st.session_state["past"] = ["Hey ! 👋"]
+
+
+def add_to_chat_history(user_input, output):
+    st.session_state["past"].append(user_input)
+    st.session_state["generated"].append(output)
+
+
+def show_api_key_error():
+    st.markdown(
+        "<div style='text-align: center;'><h4>Enter your OpenAI API key to start chatting 😉</h4></div>",
+        unsafe_allow_html=True,
+    )
+
+
 async def main():
     display_header()
-
     user_api_key = load_api_key()
 
     if user_api_key == "":
-        st.markdown(
-            "<div style='text-align: center;'><h4>Enter your OpenAI API key to start chatting 😉</h4></div>",
-            unsafe_allow_html=True,
-        )
+        show_api_key_error()
     else:
         os.environ["OPENAI_API_KEY"] = user_api_key
-
         uploaded_file = handle_upload()
 
         if uploaded_file is not None:
-            # Set up sidebar with various options
-            with st.sidebar.expander("🛠️ Settings", expanded=False):
-                if st.button("Reset Chat"):
-                    st.session_state["reset_chat"] = True
-                MODEL = st.selectbox(label="Model", options=["gpt-3.5-turbo"])
-                TEMPERATURE = st.slider(label="Temperature", min_value=0.0, max_value=1.0, value=0.618, step=0.01)
+            chat_history = st.session_state.get("history", [])
+            st.session_state["history"] = chat_history
+
+            show_sidebar_options()
 
             try:
-                # If the chat history has not yet been initialized, do so now
-                if "history" not in st.session_state:
-                    st.session_state["history"] = []
+                chatbot = await setup_chatbot(uploaded_file, st.session_state["model"], st.session_state["temperature"])
+                st.session_state["chatbot"] = chatbot
 
-                # If the chatbot is not yet ready to chat, set the "ready" flag to False
-                if "ready" not in st.session_state:
-                    st.session_state["ready"] = False
-
-                # If the "reset_chat" flag has not been set, set it to False
-                if "reset_chat" not in st.session_state:
-                    st.session_state["reset_chat"] = False
-
-                chatbot = await setup_chatbot(uploaded_file, MODEL, TEMPERATURE)
-
-                # If the chatbot is ready to chat
+                ### STARTS ###
                 if st.session_state["ready"]:
-                    # If the chat history has not yet been initialized, initialize it now
-                    if "generated" not in st.session_state:
-                        st.session_state["generated"] = [
-                            "Hello ! Ask me anything about the document " + uploaded_file.name + " 🤗"
-                        ]
-
-                    if "past" not in st.session_state:
-                        st.session_state["past"] = ["Hey ! 👋"]
-
-                    # Create a container for displaying the chat history
+                    # Create a containers for displaying the chat history
                     response_container = st.container()
-
-                    # Create a container for the user's text input
                     container = st.container()
 
                     with container:
-                        # Create a form for the user to enter their query
                         with st.form(key="my_form", clear_on_submit=True):
                             user_input = st.text_area(
                                 "Query:",
@@ -125,36 +135,23 @@ async def main():
                             )
                             submit_button = st.form_submit_button(label="Send")
 
-                            # If the "reset_chat" flag has been set, reset the chat history and generated messages
-                            if st.session_state["reset_chat"]:
-                                st.session_state["history"] = []
-                                st.session_state["past"] = ["Hey ! 👋"]
-                                st.session_state["generated"] = [
-                                    "Hello ! Ask me anything about the document " + uploaded_file.name + " 🤗"
-                                ]
-                                response_container.empty()
-                                st.session_state["reset_chat"] = False
+                        if st.session_state["reset_chat"]:
+                            reset_chat_history(uploaded_file)
+                        initialize_chat_history(uploaded_file)
 
                         # If the user has submitted a query
                         if submit_button and user_input:
-                            # Add the user's input to the chat history
-                            st.session_state["past"].append(user_input)
-
-                            # Generate a response using the Langchain ConversationalRetrievalChain
-                            output = await chatbot.conversational_chat(user_input)
-
-                            # Add the user's chatbot's output to the chat history
-                            st.session_state["generated"].append(output)
+                            output = await st.session_state["chatbot"].conversational_chat(user_input)
+                            add_to_chat_history(user_input, output)
 
                     # If there are generated messages to display
                     if st.session_state["generated"]:
-                        # Display the chat history
                         with response_container:
                             for i in range(len(st.session_state["generated"])):
                                 message(
                                     st.session_state["past"][i],
                                     is_user=True,
-                                    key=str(i) + "_user",
+                                    key=f"{i}_user",
                                     avatar_style="big-smile",
                                 )
                                 message(st.session_state["generated"][i], key=str(i), avatar_style="thumbs")
@@ -162,8 +159,7 @@ async def main():
             except Exception as e:
                 st.error(f"Error: {str(e)}")
 
-    sidebar = Sidebar()
-    sidebar.show()
+    Sidebar().show()
 
 
 # Run the main function using asyncio
