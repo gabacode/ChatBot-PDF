@@ -98,21 +98,21 @@ async def main():
 
                         # If the user has submitted a query
                         if submit_button and user_input:
-                            history.append("past", user_input)
+                            history.append("user", user_input)
                             output = await st.session_state["chatbot"].conversational_chat(user_input)
-                            history.append("generated", output)
+                            history.append("assistant", output)
 
                     # If there are generated messages to display
-                    if st.session_state["generated"]:
+                    if st.session_state["assistant"]:
                         with response_container:
-                            for i in range(len(st.session_state["generated"])):
+                            for i in range(len(st.session_state["assistant"])):
                                 message(
-                                    st.session_state["past"][i],
+                                    st.session_state["user"][i],
                                     is_user=True,
                                     key=f"{i}_user",
                                     avatar_style="big-smile",
                                 )
-                                message(st.session_state["generated"][i], key=str(i), avatar_style="thumbs")
+                                message(st.session_state["assistant"][i], key=str(i), avatar_style="thumbs")
 
             except Exception as e:
                 st.error(f"Error: {str(e)}")
