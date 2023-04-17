@@ -10,36 +10,60 @@ from modules.embedder import Embedder
 from modules.sidebar import Sidebar
 
 
-embeds = Embedder()
+load_dotenv()
 
 st.set_page_config(layout="wide", page_icon="💬", page_title="ChatBot-PDF")
 
-
+# Display the header of the app
 def display_header():
     st.markdown(
         "<h1 style='text-align: center;'>ChatBot-PDF, Talk with your documents ! 💬</h1>", unsafe_allow_html=True
     )
 
 
-def show_user_file(uploaded_file):
-    file_container = st.expander("Your PDF file :")
-    file_container.write(uploaded_file)
+# Load the OpenAI API key from the .env file or from the user's input
+def load_api_key():
+    user_api_key = os.getenv("OPENAI_API_KEY")
+    if not user_api_key:
+        user_api_key = st.sidebar.text_input(
+            label="#### Your OpenAI API key 👇", placeholder="Paste your openAI API key, sk-", type="password"
+        )
+    else:
+        st.sidebar.success("API key loaded from .env", icon="🚀")
+    return user_api_key
 
 
-load_dotenv()
-user_api_key = os.getenv("OPENAI_API_KEY")
-if not user_api_key:
-    user_api_key = st.sidebar.text_input(
-        label="#### Your OpenAI API key 👇", placeholder="Paste your openAI API key, sk-", type="password"
-    )
-else:
-    st.sidebar.success("API key loaded from .env", icon="🚀")
+# Handle the file upload and display the uploaded file
+def handle_upload():
+    uploaded_file = st.sidebar.file_uploader("upload", type="pdf", label_visibility="collapsed")
+    if uploaded_file is not None:
+        file_container = st.expander("Your PDF file :")
+        file_container.write(uploaded_file)
+    else:
+        st.sidebar.info(
+            "👆 Upload your PDF file to get started, "
+            "sample for try : [file.pdf](https://github.com/gabacode/chatPDF/blob/main/file.pdf)"
+        )
+    return uploaded_file
+
+
+# Set up the chatbot with the uploaded file, model, and temperature
+async def setup_chatbot(uploaded_file, model, temperature):
+    embeds = Embedder()
+    with st.spinner("Processing..."):
+        uploaded_file.seek(0)
+        file = uploaded_file.read()
+        vectors = await embeds.getDocEmbeds(file, uploaded_file.name)
+        chatbot = Chatbot(model, temperature, vectors)
+    st.session_state["ready"] = True
+    return chatbot
 
 
 async def main():
     display_header()
 
-    ############################
+    user_api_key = load_api_key()
+
     if user_api_key == "":
         st.markdown(
             "<div style='text-align: center;'><h4>Enter your OpenAI API key to start chatting 😉</h4></div>",
@@ -48,31 +72,17 @@ async def main():
     else:
         os.environ["OPENAI_API_KEY"] = user_api_key
 
-        ############################
-        uploaded_file = st.sidebar.file_uploader("upload", type="pdf", label_visibility="collapsed")
+        uploaded_file = handle_upload()
+
         if uploaded_file is not None:
-            show_user_file(uploaded_file)
-        else:
-            st.sidebar.info(
-                "👆 Upload your PDF file to get started, "
-                "sample for try : [file.pdf](https://github.com/gabacode/chatPDF/blob/main/file.pdf)"
-            )
-        ############################
+            # Set up sidebar with various options
+            with st.sidebar.expander("🛠️ Settings", expanded=False):
+                if st.button("Reset Chat"):
+                    st.session_state["reset_chat"] = True
+                MODEL = st.selectbox(label="Model", options=["gpt-3.5-turbo"])
+                TEMPERATURE = st.slider(label="Temperature", min_value=0.0, max_value=1.0, value=0.618, step=0.01)
 
-        if uploaded_file:
             try:
-                # Set up sidebar with various options
-                with st.sidebar.expander("🛠️ Settings", expanded=False):
-                    # Add a button to reset the chat history
-                    if st.button("Reset Chat"):
-                        st.session_state["reset_chat"] = True
-
-                    # Allow the user to select a chatbot model to use
-                    MODEL = st.selectbox(label="Model", options=["gpt-3.5-turbo"])
-
-                    # Allow the user to change the model temperature
-                    TEMPERATURE = st.slider(label="Temperature", min_value=0.0, max_value=1.0, value=0.618, step=0.01)
-
                 # If the chat history has not yet been initialized, do so now
                 if "history" not in st.session_state:
                     st.session_state["history"] = []
@@ -85,19 +95,7 @@ async def main():
                 if "reset_chat" not in st.session_state:
                     st.session_state["reset_chat"] = False
 
-                    # If a PDF file has been uploaded
-                if uploaded_file is not None:
-                    # Display a spinner while processing the file
-                    with st.spinner("Processing..."):
-                        # Read the uploaded PDF file
-                        uploaded_file.seek(0)
-                        file = uploaded_file.read()
-                        # Generate embeddings vectors for the file
-                        vectors = await embeds.getDocEmbeds(file, uploaded_file.name)
-                        # Use the Langchain ConversationalRetrievalChain to set up the chatbot
-                        chatbot = Chatbot(MODEL, TEMPERATURE, vectors)
-                    # Set the "ready" flag to True now that the chatbot is ready to chat
-                    st.session_state["ready"] = True
+                chatbot = await setup_chatbot(uploaded_file, MODEL, TEMPERATURE)
 
                 # If the chatbot is ready to chat
                 if st.session_state["ready"]:
