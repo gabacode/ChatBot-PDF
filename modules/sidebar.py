@@ -8,10 +8,8 @@ class Sidebar:
     TEMPERATURE_DEFAULT_VALUE = 0.618
     TEMPERATURE_STEP = 0.01
 
-    def __init__(self):
-        pass
-
-    def about(self):
+    @staticmethod
+    def about():
         about = st.sidebar.expander("About 🤖")
         sections = [
             "#### ChatBot-PDF is an AI chatbot featuring conversational memory, designed to enable users to discuss their PDF data in a more intuitive manner. 📄",
@@ -23,7 +21,8 @@ class Sidebar:
         for section in sections:
             about.write(section)
 
-    def reset_chat_button(self):
+    @staticmethod
+    def reset_chat_button():
         if st.button("Reset chat"):
             st.session_state["reset_chat"] = True
         st.session_state.setdefault("reset_chat", False)
@@ -42,7 +41,7 @@ class Sidebar:
         )
         st.session_state["temperature"] = temperature
 
-    def options(self):
+    def show_options(self):
         with st.sidebar.expander("🛠️ Settings", expanded=False):
             self.reset_chat_button()
             self.model_selector()
