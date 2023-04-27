@@ -26,6 +26,12 @@ pip install --upgrade pip
 # Install dependencies
 pip install -r $DIR/requirements.txt
 
+# With Cuda 11.7
+pip install torch torchvision torchaudio
+
+# With CPU Support
+#pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+
 # Clear terminal
 clear
 

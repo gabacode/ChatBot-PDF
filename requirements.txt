@@ -1,7 +1,11 @@
+accelerate==0.18.0
 faiss-cpu==1.7.3
-langchain==0.0.141
+langchain==0.0.151
+openai==0.27.5
+pexpect==4.8.0
 pypdf==3.8.0
 python-dotenv==1.0.0
-streamlit==1.21.0
+streamlit==1.22.0
 streamlit_chat==0.0.2.2
 tiktoken==0.3.3
+transformers==4.28.1

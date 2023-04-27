@@ -1,6 +1,13 @@
 import streamlit as st
-from langchain.chat_models import ChatOpenAI
-from langchain.chains import ConversationalRetrievalChain
+from langchain.chains import RetrievalQA
+from langchain.llms import HuggingFacePipeline
+from transformers import (
+    pipeline,
+    AutoModelForCausalLM,
+    AutoTokenizer,
+)
+
+import torch
 
 
 class Chatbot:
@@ -14,12 +21,28 @@ class Chatbot:
         Starts a conversational chat with a model via Langchain
         """
 
-        chain = ConversationalRetrievalChain.from_llm(
-            llm=ChatOpenAI(model_name=self.model_name, temperature=self.temperature),
-            retriever=self.vectors.as_retriever(),
+        tokenizer = AutoTokenizer.from_pretrained("databricks/dolly-v2-3b", padding_side="left")
+        base_model = AutoModelForCausalLM.from_pretrained(
+            "databricks/dolly-v2-3b", device_map="auto", torch_dtype=torch.float16
         )
-        result = chain({"question": query, "chat_history": st.session_state["history"]})
 
-        st.session_state["history"].append((query, result["answer"]))
+        pipe = pipeline(
+            "text-generation",
+            model=base_model,
+            tokenizer=tokenizer,
+            max_length=1024,
+            temperature=0.6,
+            pad_token_id=tokenizer.eos_token_id,
+            top_p=0.95,
+            repetition_penalty=1.2,
+            model_kwargs={"load_in_8bit": True},
+        )
+        local_llm = HuggingFacePipeline(pipeline=pipe)
 
-        return result["answer"]
+        qa = RetrievalQA.from_chain_type(llm=local_llm, chain_type="stuff", retriever=self.vectors.as_retriever())
+
+        result = qa({"query": query})
+
+        st.session_state["history"].append((query, result["result"]))
+
+        return result["result"]
